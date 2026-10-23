@@ -3,9 +3,6 @@
 -- have not been verified in the installed Avorion build.
 
 local PROBE_SCRIPT_PATH = "data/scripts/entity/ai_commander_probe.lua"
--- Keep empty until a disposable test target has been created and its ID verified.
--- An empty value makes this command fail closed.
-local ALLOWED_TARGET_ID = ""
 
 local function inspectString(readValue)
     local ok, value = pcall(readValue)
@@ -21,11 +18,23 @@ local function inspectString(readValue)
     return stringValue
 end
 
+local function targetIdString(target)
+    local ok, value = pcall(function() return target.id.string end)
+    if not ok or type(value) ~= "string" or value == "" then
+        return nil
+    end
+
+    return value
+end
+
 function execute(playerIndex, commandName, ...)
     local argumentCount = select("#", ...)
     local inspectMode = argumentCount == 1 and select(1, ...) == "inspect"
-    if argumentCount ~= 0 and not inspectMode then
-        return 1, "", "Usage: /ai_commander_attach_probe inspect or /ai_commander_attach_probe"
+    local attachMode = argumentCount == 3
+        and select(1, ...) == "attach"
+        and select(2, ...) == "confirm"
+    if not inspectMode and not attachMode then
+        return 1, "", "Usage: /ai_commander_attach_probe inspect or /ai_commander_attach_probe attach confirm <ship_id-from-inspect>"
     end
 
     if playerIndex == nil then
@@ -39,10 +48,6 @@ function execute(playerIndex, commandName, ...)
 
     if not Server():hasAdminPrivileges(player) then
         return 1, "", "Admin privileges are required."
-    end
-
-    if not inspectMode and select("#", ...) ~= 0 then
-        return 1, "", "This command accepts no arguments; select the target ship in game."
     end
 
     local craft = player.craft
@@ -74,12 +79,12 @@ function execute(playerIndex, commandName, ...)
         return 0, message, ""
     end
 
-    if ALLOWED_TARGET_ID == "" then
-        return 1, "", "No disposable test ship is allowlisted; no attach was requested."
+    local selectedTargetId = targetIdString(target)
+    if not selectedTargetId then
+        return 1, "", "The selected ship ID is unavailable; no attach was requested."
     end
-
-    if target.id.string ~= ALLOWED_TARGET_ID then
-        return 1, "", "The selected ship is not the allowlisted test target."
+    if selectedTargetId ~= select(3, ...) then
+        return 1, "", "The selected ship ID does not match the inspect confirmation; no attach was requested."
     end
 
     -- Point-in-time duplicate check. API docs do not establish atomic exactly-once
@@ -89,13 +94,13 @@ function execute(playerIndex, commandName, ...)
     end
 
     target:addScriptOnce(PROBE_SCRIPT_PATH)
-    return 0, "Attach requested for the selected ship; runtime attachment is unconfirmed.", ""
+    return 0, "Attach requested for the selected AI-owned ship; if accepted, the passive probe stays attached and polls every second (runtime attachment is unconfirmed).", ""
 end
 
 function getDescription()
-    return "Requests the passive AI Commander probe on the selected ship."
+    return "Inspects or explicitly requests the passive AI Commander probe on the selected ship."
 end
 
 function getHelp()
-    return "Usage:\n  /ai_commander_attach_probe inspect (read-only preflight)\n  /ai_commander_attach_probe (attach request; select a ship first)"
+    return "Usage:\n  /ai_commander_attach_probe inspect (read-only preflight)\n  /ai_commander_attach_probe attach confirm <ship_id-from-inspect> (explicit attach request; select that AI-owned ship first)"
 end
