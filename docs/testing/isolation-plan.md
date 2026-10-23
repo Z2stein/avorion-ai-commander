@@ -4,6 +4,12 @@
 
 Dieses Dokument beschreibt Gates für einen künftigen M1-Laufzeittest. Es ist ein Plan und kein Nachweis, dass ein isolierter Server oder Spielstand vorhanden ist. Dieser öffentliche Snapshot enthält kein Hostinventar, Prozess-Snapshot, Netzwerkscan oder Firewallprotokoll.
 
+## Letzte Laufzeitbeobachtung
+
+Die Testserverinstanz läuft. Ihr Lauf auf einer separaten Testkopie erreichte `Server startup complete`; ein Client verband sich und lud die Welt. Das Clientlog bestätigt die Registrierung des lokalen Projekt-Mod-Manifests und Server-Advertisement. Es belegt nicht, dass Lua-Scripts geladen oder `initialize` beziehungsweise Command-Handler ausgeführt wurden. Der Server meldete Multiplayer aktiviert und lauschte auf allen IPv4-Adressen; die technische Netzisolation ist nicht abgenommen.
+
+Return/KP_Enter öffneten das Chatfeld nicht. Ein Return wurde zunächst einmal gesendet; das Clientlog meldete danach einen Notruf/Mayday und Sektorereignisse. Nach dem Chat-Eintrag `test` wurde im sichtbaren Chatbereich versucht, `/ai_commander_attach_probe inspect` einzugeben. Im ersten frischen Screenshot war kein Befehlstext sichtbar; ein weiteres Return wurde nicht gesendet. Nach einem Hinweis, dass physisch getippte Buchstaben in der Chatzeile sichtbar seien, wurde der Texteingabeversuch mit `/ai_commander_attach_probe inspect` wiederholt. Auch der frische Screenshot zeigte keinen Befehlstext; danach wurde kein Return gesendet. Die aktuelle Chatprotokollierung zeigt weiterhin nur den Chat-Eintrag `test`, keinen Inspect-Aufruf. Der Nutzer wurde gebeten, die Chatzeile manuell mit dem Befehlstext zu füllen; bis dahin erfolgt kein Inspect. Der read-only `inspect`-Aufruf wurde nicht ausgeführt. Es gab weder Attach noch IPC-Roundtrip, Zustandsexport oder Schiffsaktion; M1 bleibt unbestätigt.
+
 ## Voraussetzungen
 
 Ein Live-Test darf erst stattfinden, wenn alle folgenden Punkte im konkreten Testaufbau unabhängig bestätigt wurden:
@@ -15,7 +21,7 @@ Ein Live-Test darf erst stattfinden, wenn alle folgenden Punkte im konkreten Tes
 5. Die Netzwerkreichweite des Servers ist durch bestehende Kontrollen der Testumgebung begrenzt. Betriebssystem- oder Firewall-Einstellungen im Rahmen dieses Plans nicht ändern. Lässt sich die erforderliche Grenze ohne solche Änderung nicht nachweisen, Test abbrechen und Aufbau neu entwerfen.
 6. Es gibt eine Wiederherstellungskopie der entbehrlichen Testdaten; die geplante Bereinigung kann nur diese Testdaten betreffen.
 
-Ist eine Bedingung unbekannt, keinen Server für diesen Test starten und keinen Client verbinden.
+Ist eine Bedingung unbekannt, keinen weiteren Live-Test beginnen und keinen Spielbefehl ausführen. Die oben dokumentierte Sitzung hebt die Gates nicht auf.
 
 ## M1-No-Action-Smoke-Test
 
