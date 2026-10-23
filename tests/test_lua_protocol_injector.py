@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from contextlib import ExitStack
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -81,6 +83,70 @@ class FakeChannels:
     def ensure_no_unexpected_output(self) -> None:
         if self.read_outbox_records():
             raise injector_module.InjectorError("unexpected fake output")
+
+
+class LuaProtocolInjectorOutboxFramingTests(unittest.TestCase):
+    def make_channels(self, directory: Path) -> injector_module.Channels:
+        (directory / injector_module.INBOX_NAME).touch()
+        (directory / injector_module.OUTBOX_NAME).touch()
+        resolved, identity = injector_module.resolve_moddata_dir(str(directory))
+        return injector_module.Channels(resolved, identity)
+
+    def read_records(self, contents: bytes) -> list[str]:
+        with tempfile.TemporaryDirectory(prefix="ac1-injector-framing-") as temp:
+            channels = self.make_channels(Path(temp))
+            with channels.outbox.open("ab") as stream:
+                stream.write(contents)
+            return channels.read_outbox_records()
+
+    def test_accepts_exactly_one_cr_as_the_crlf_terminator(self) -> None:
+        session = "a" * 32
+        record = f"AC|1|HELLO_ACK|{session}".encode("ascii")
+
+        self.assertEqual(self.read_records(record + b"\r\n"), [record.decode("ascii")])
+
+    def test_waits_for_lf_before_emitting_a_crlf_record(self) -> None:
+        session = "b" * 32
+        record = f"AC|1|HELLO_ACK|{session}".encode("ascii")
+        with tempfile.TemporaryDirectory(prefix="ac1-injector-framing-") as temp:
+            channels = self.make_channels(Path(temp))
+            with channels.outbox.open("ab") as stream:
+                stream.write(record + b"\r")
+            self.assertEqual(channels.read_outbox_records(), [])
+            self.assertEqual(bytes(channels.outbox_tail), record + b"\r")
+
+            with channels.outbox.open("ab") as stream:
+                stream.write(b"\n")
+            self.assertEqual(channels.read_outbox_records(), [record.decode("ascii")])
+
+    def test_rejects_embedded_or_multiple_cr_bytes(self) -> None:
+        prefix = b"AC|1|HELLO_ACK|"
+        suffix = ("c" * 32).encode("ascii")
+        records = (
+            prefix + suffix[:8] + b"\r" + suffix[8:] + b"\n",
+            prefix + suffix + b"\r\r\n",
+        )
+        for record in records:
+            with self.subTest(record=record), self.assertRaisesRegex(
+                injector_module.InjectorError, "outbox contains CR or NUL"
+            ):
+                self.read_records(record)
+
+    def test_rejects_nul_in_record(self) -> None:
+        record = b"AC|1|HELLO_ACK|" + b"d" * 16 + b"\x00" + b"d" * 16 + b"\n"
+        with self.assertRaisesRegex(injector_module.InjectorError, "outbox contains CR or NUL"):
+            self.read_records(record)
+
+    def test_crlf_record_size_counts_both_terminator_bytes(self) -> None:
+        largest_content = b"x" * (injector_module.MAX_RECORD_BYTES - 2)
+        self.assertEqual(
+            self.read_records(largest_content + b"\r\n"),
+            [largest_content.decode("ascii")],
+        )
+
+        oversized_content = b"x" * (injector_module.MAX_RECORD_BYTES - 1)
+        with self.assertRaisesRegex(injector_module.InjectorError, "512-byte limit"):
+            self.read_records(oversized_content + b"\r\n")
 
 
 class LuaProtocolInjectorDeadlineTests(unittest.TestCase):

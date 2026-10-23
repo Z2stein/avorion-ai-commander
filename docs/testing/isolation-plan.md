@@ -6,7 +6,7 @@ Dieses Dokument beschreibt Gates für einen künftigen M1-Laufzeittest. Es ist e
 
 ## Letzte Laufzeitbeobachtung
 
-Der zweite Testserver auf einer separaten Testkopie erreichte `Server startup complete`; Multiplayer war aktiviert, der Server nicht gelistet und Steam Networking deaktiviert. Zwei passive Datei-IPC-Zyklen wurden in getrennten Sessions beobachtet. Im jüngsten Lauf waren die Kanäle vor Lua-Initialisierung leer; Inspect bestätigte ein AI-eigenes Ziel und die STATE-ID stimmte mit der erwarteten ID überein. Die Bridge schloss einen Zyklus mit Exitcode 0 ab. Attach meldete bereits vorhandene Probe-Präsenz; ein neues Attach wurde nicht bestätigt. Das belegt begrenzten passiven STATE-Transfer, keine ShipAI-Aktion oder Autonomie. Technische Netzisolation und formale GETESTET-Abnahme bleiben offen. Der Server läuft weiter; eine weitere aktive Wiederholung benötigt frische Kanaldateien.
+Nach dem Start einer separaten Testkopie wurden in einer aktiven Lua-Session 50 passive Datei-IPC-Zyklen abgeschlossen. Der erste Aufruf des separaten `lua_protocol_injector.py` erhielt HELLO_ACK, brach aber vor PROBE ab, weil sein Parser CRLF ablehnte. Anschließend setzte `probe_bridge.py --resume-after-hello` fort: je 50 PROBE-, STATE-, ACK- und ACKED-Records, Sequenzen 1–50, Exitcode 0; alle STATE-IDs stimmten mit der erwarteten ID überein. Der Zustand enthielt Hülle, Schildstatus und Position; es wurde keine ShipAI-Aktion ausgelöst. Der Testserver läuft weiter, die Probe pollt und die Kanaldateien enthalten Records. Da der TCP-Fallback auf allen Interfaces lauscht, ist technische Isolation nicht bestätigt und die formale **GETESTET**-Abnahme offen.
 
 Historische Eingabephase vor dem erfolgreichen Inspect: Return/KP_Enter öffneten das Chatfeld nicht; der vollständige Inspect-Befehl wurde damals nicht übermittelt. Spätere Laufzeitbeobachtungen sind im Follow-up am Dokumentende beschrieben.
 
@@ -38,7 +38,7 @@ Ist eine Bedingung unbekannt, keinen weiteren Live-Test beginnen und keinen Spie
 
 M1 gilt erst als nachgewiesen, wenn die isolierte Umgebung dokumentiert ist, das Modladen belegt wurde, `inspect` erwartete schreibgeschützte Werte liefert, der Ein-Zyklus-Roundtrip erfolgreich endet, beide Kanalprotokolle die erwarteten korrelierten Records enthalten und der Zustand das vorgesehene Testschiff bezeichnet. Ein angenommenes Kommando oder ein Server-Konsolenmarker belegt keine Mod-IPC. M1 enthält keine Schiffssteuerungsaktion.
 
-Offline-Protokolltests sind kein Laufzeitnachweis. Zwei passive Datei-IPC-Zyklen belegen Lua-Ausführung und begrenzten STATE-Transfer für diese Sessions. Die genaue Identität der geladenen Quelle, allgemeine Dateiberechtigungen, Fehlerfälle und technische Isolation bleiben offen. `probe_script_path` ist ein hart codierter vorgesehener Pfad und für sich kein Attach-Beleg; beim jüngsten Lauf meldete der Attach-Aufruf nur bereits vorhandene Probe-Präsenz.
+Offline-Protokolltests sind kein Laufzeitnachweis. Die 50 beobachteten Bridge-Zyklen belegen Lua-Ausführung und begrenzten STATE-Transfer für diese Session; sie ersetzen weder die geplante isolierte M1-Abnahme noch den separaten Injektortest. Die genaue Identität der geladenen Quelle, allgemeine Dateiberechtigungen, Fehlerfälle und technische Isolation bleiben offen. `probe_script_path` ist ein hart codierter vorgesehener Pfad und für sich kein Attach-Beleg; beim Lauf meldete der Attach-Aufruf nur bereits vorhandene Probe-Präsenz.
 
 ## Spätere Aktionstests
 
@@ -84,7 +84,7 @@ Die Ingame-Antwort meldete die Probe am ausgewaehlten AI-Schiff als bereits ange
 
 Dieser erste Zyklus belegt passive Zustandsuebertragung, keine Spielsteuerung oder Kampfaktion. Die Probe pollte nach Abschluss der Bridge weiter. Resume ist nur fuer einen exklusiven einzelnen Bridge-Writer und eine aktive Lua-Session bestimmt; Snapshot-Pruefung ist kein Lock und bietet keine Concurrent-Writer-Sicherheit. Offline-Tests belegen weiterhin nur Parser-/Resume-Verhalten.
 
-## Aktueller Live-Durchstich 2026-10-23: zweiter passiver Ein-Zyklus-Lauf
+## Historischer Live-Durchstich 2026-10-23: zweiter passiver Ein-Zyklus-Lauf
 
 Ein zweiter Serverstart auf einer frischen Testkopie erreichte `Server startup complete`; der Server meldete Multiplayer aktiviert, nicht gelistet und Steam Networking deaktiviert. Der Server läuft weiter. Die separate Mod- und Backup-Konfiguration dieser Testkopie belegt keine technische Netzisolation.
 

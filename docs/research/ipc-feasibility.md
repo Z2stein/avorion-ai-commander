@@ -2,7 +2,7 @@
 
 ## Umfang und Evidenz
 
-Dies ist eine statische, versionsbezogene Recherche. Sie belegt kein Laufzeitverhalten auf einem konkreten Rechner. Diese statische Recherche führte selbst keinen IPC-Lauf aus; zwei spätere passive M1-Live-Zyklen sind im `docs/project/status.md` dokumentiert.
+Dies ist eine statische, versionsbezogene Recherche. Sie belegt kein Laufzeitverhalten auf einem konkreten Rechner. Diese statische Recherche führte selbst keinen IPC-Lauf aus; zwei frühere passive Ein-Zyklus-Läufe und danach 50 Zyklen in einer aktiven Lua-Session sind im `docs/project/status.md` dokumentiert.
 
 Verwende die Evidenzstufen des Projekts: **DOKUMENTIERT** bezeichnet eine passende Quelle, **PLAUSIBEL** eine noch nicht nachgewiesene Möglichkeit und **GETESTET** ein reproduzierbares Laufzeitergebnis.
 
@@ -46,6 +46,6 @@ Datei-IPC ist ein begrenzter Anfrage-/Antwortkanal, kein direkter Datenbankzugri
 
 ## Vorläufige Empfehlung
 
-Begrenzte Datei-IPC bleibt M1-Kandidat. Zwei spätere Live-Läufe bestätigten einen begrenzten bidirektionalen Entity-State-Austausch; ein reproduzierbarer Lauf in bestätigter Isolation sowie allgemeine Pfad-, Berechtigungs- und Fehlergarantien sind nicht belegt. RCON für Serveradministration und Befehlsdateien für einfache einseitige Kommandos verwenden. Latenz messen, statt ein Pollingintervall vorauszusetzen.
+Begrenzte Datei-IPC bleibt M1-Kandidat. Zwei frühere Ein-Zyklus-Läufe und danach 50 Bridge-Zyklen in einer aktiven Lua-Session bestätigten einen begrenzten bidirektionalen Entity-State-Austausch; ein reproduzierbarer Lauf in bestätigter Isolation sowie allgemeine Pfad-, Berechtigungs- und Fehlergarantien sind nicht belegt. RCON für Serveradministration und Befehlsdateien für einfache einseitige Kommandos verwenden. Latenz messen, statt ein Pollingintervall vorauszusetzen.
 
-Dieser statische Recherchebericht enthält selbst keinen Live-Test oder hostbezogene Netzwerkanalyse; die zwei separat beobachteten passiven IPC-Zyklen sind im öffentlichen Projektstatus dokumentiert. Sie belegen keine bestätigte Netzisolation oder formale M1-Abnahme.
+Dieser statische Recherchebericht enthält selbst keinen Live-Test oder hostbezogene Netzwerkanalyse; zwei separat beobachtete passive Ein-Zyklus-Läufe und danach 50 Bridge-Zyklen in einer aktiven Session sind im öffentlichen Projektstatus dokumentiert. Sie belegen keine bestätigte Netzisolation oder formale M1-Abnahme.

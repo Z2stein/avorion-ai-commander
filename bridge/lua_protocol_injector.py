@@ -295,12 +295,19 @@ class Channels:
                 break
             raw = bytes(self.outbox_tail[:newline])
             del self.outbox_tail[: newline + 1]
-            if len(raw) + 1 > MAX_RECORD_BYTES:
+            crlf_terminated = raw.endswith(b"\r")
+            if crlf_terminated:
+                line_bytes = raw[:-1]
+                terminator_bytes = 2
+            else:
+                line_bytes = raw
+                terminator_bytes = 1
+            if len(line_bytes) + terminator_bytes > MAX_RECORD_BYTES:
                 raise InjectorError("outbox record exceeds the 512-byte limit")
-            if b"\r" in raw or b"\x00" in raw:
+            if b"\r" in line_bytes or b"\x00" in line_bytes:
                 raise InjectorError("outbox contains CR or NUL")
             try:
-                line = raw.decode("ascii")
+                line = line_bytes.decode("ascii")
             except UnicodeDecodeError as exc:
                 raise InjectorError("outbox contains non-ASCII bytes") from exc
             self.outbox_record_count += 1
