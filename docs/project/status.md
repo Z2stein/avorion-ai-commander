@@ -23,3 +23,18 @@ Die Bridge akzeptiert ein explizit übergebenes Moddata-Verzeichnis; sie kann ni
 Einen entbehrlichen Spielstand verwenden und die Trennung von Spielstanddaten, Modkonfiguration, Backups und Netzwerkzugriff nachweisen. Zielspielversion, Modladen, einen erfolgreichen Handler-Aufruf (die `/help`-Liste bestätigt nur Registrierung und Auflistung), `Server().folder`-Zuordnung und IPC-Dateiberechtigungen in dieser Umgebung bestätigen. Ein erreichter Serverstart und eine geladene Clientwelt ersetzen diese Nachweise nicht.
 
 Dieser öffentliche Status lässt Hostinventare, lokale Konfiguration, Spielstandnamen, Prozesskennungen, Zeitstempel und Netzwerkdiagnosen absichtlich aus. Aus dieser Auslassung keine Schlussfolgerung über einen konkreten Rechner ziehen.
+
+## Aktualisierung 2026-10-23
+
+- Die Offline-Suite wurde erneut mit Python 3.14.5 ausgeführt: 22/22 Tests bestanden, Exitcode 0. Sie verwendet Fake-Peers, temporäre Dateien, Mock-Kanäle und eine Fake-Uhr; sie belegt keine Lua-Laufzeit oder echte Avorion-IPC.
+- Laut installierter API-Dokumentation erhält ein Konsolen-/RCON-Command `playerIndex == nil`. Der bestehende read-only Inspect-Handler benötigt Ingame-Spieler- und Zielkontext; `commands.txt` kann diesen Kontext nicht bereitstellen.
+- Eine separate read-only Konsolenabfrage per Entity-ID ist als API-Kandidat dokumentiert. Ob `Sector()` im globalen Command-Kontext verfügbar ist, bleibt unbestätigt. Die dokumentierte Sektor-Auflistung liefert alle Treffer ohne eingebaute Obergrenze und ist nicht implementiert.
+- Die API-Dokumentation beschreibt keinen Hot-Reload für Command-Scripts. Der laufende Server wurde nicht für diese Prüfung verändert oder neu gestartet.
+- Eine erneute lesende Spielansicht zeigte eine leere Chatzeile. Der volle Inspect-Aufruf, Attach und IPC-Roundtrip wurden nicht ausgeführt; M1 bleibt offen.
+
+## Aktualisierung 2026-10-23: Computer-Use-/Vollbild-Befund
+
+- Ein lesender Fensterinventar-Check fand genau ein Avorion-Fenster (`Avorion`, `steam://rungameid/445220`, Prozess `Avorion.exe`). Der Screenshot zeigte den Ladebildschirm mit Space-Hinweis.
+- Zwei gezielt an dieses Fenster gerichtete Space-Eingaben führten zu keinem dauerhaft verifizierten Bildschirmwechsel. Die Zielfenster-Auswahl ist bestätigt; ob Avorion die Eingabe annahm, ist nicht bestätigt. UIA-Fokus lag auf der Avorion-Fläche, nicht auf einem Chatfeld. Es wurde kein weiterer Tastendruck ausgelöst.
+- Computer-Use/Windows/Vollbild/Game-Input bleibt eine mögliche, unbewiesene Ursache. Offizielle OpenAI-Seiten ergaben keinen passenden Vollbild-Spiel-Workaround und keinen bestätigten Avorion-spezifischen Fehler. [Community-Berichte zu Windows-App-Erkennung/-Steuerung](https://community.openai.com/t/computer-use-plugin-stopped-working/1397316/2) und [zu einem Initialisierungsfehler vor der App-Erkennung](https://community.openai.com/t/windows-computer-use-fails-at-initialization-with-eperm-after-repair-reset-and-reinstall/1389280) sind anekdotische Nutzerberichte, keine bestätigte OpenAI-Fehlerursache.
+- Inspect, Attach und IPC-Roundtrip wurden nicht ausgeführt. **M1 bleibt offen.**
