@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 from collections import deque
 import math
+import os
 import re
 import secrets
 import sys
@@ -81,7 +82,7 @@ def append_record(path: Path, record_type: str, *fields: object) -> None:
 
 
 def read_complete_records(path: Path, offset: int) -> tuple[list[str], int]:
-    """Read only LF-terminated records, leaving any incomplete tail for the next poll."""
+    """Read LF- or CRLF-terminated records, leaving an incomplete tail for the next poll."""
     try:
         with path.open("rb") as stream:
             stream.seek(offset)
@@ -102,7 +103,13 @@ def read_complete_records(path: Path, offset: int) -> tuple[list[str], int]:
         lines.pop()
     decoded: list[str] = []
     for line in lines:
-        if len(line) + 1 > MAX_RECORD_BYTES:
+        crlf_terminated = line.endswith(b"\r")
+        if crlf_terminated:
+            # One CR immediately before LF belongs to the separator. Any other
+            # CR remains in the record and is rejected by parse_record().
+            line = line[:-1]
+        terminator_bytes = 2 if crlf_terminated else 1
+        if len(line) + terminator_bytes > MAX_RECORD_BYTES:
             raise BridgeError("incoming record exceeds the provisional size limit")
         try:
             decoded.append(line.decode("ascii"))
@@ -187,6 +194,7 @@ class FileBridge:
         expected_ship_id: str,
         poll_interval: float,
         timeout: float,
+        resume_after_hello: bool = False,
     ) -> None:
         self.directory = directory
         self.inbox = directory / INBOX_NAME
@@ -194,18 +202,83 @@ class FileBridge:
         self.expected_ship_id = expected_ship_id
         self.poll_interval = poll_interval
         self.timeout = timeout
-        self.session = secrets.token_hex(16)
+        self.session = ""
         self.inbox_offset = 0
         self.inbox_record_count = 0
         self.outbox_record_count = 0
         self.pending_records: deque[str] = deque()
+        self._resume_snapshot: tuple[bytes, bytes] | None = None
 
-        # Reusing append-only logs would replay stale sessions. Never clear or rotate them.
-        for path in (self.inbox, self.outbox):
-            if path.exists() and path.stat().st_size != 0:
-                raise BridgeError(
-                    f"{path.name} is non-empty; use fresh empty files in the approved isolated test directory"
-                )
+        if resume_after_hello:
+            self._resume_exact_hello_handshake()
+        else:
+            self.session = secrets.token_hex(16)
+            # Reusing append-only logs would replay stale sessions. Never clear or rotate them.
+            for path in (self.inbox, self.outbox):
+                if path.exists() and path.stat().st_size != 0:
+                    raise BridgeError(
+                        f"{path.name} is non-empty; use fresh empty files in the approved isolated test directory"
+                    )
+
+    def _resume_exact_hello_handshake(self) -> None:
+        """Resume only the exact one-record HELLO/matching HELLO_ACK state.
+
+        Repeated snapshots detect ordinary changes; they do not lock out a
+        concurrent writer. Resume requires an exclusive bridge writer.
+        """
+        first_snapshot = (
+            self._read_stable_file(self.outbox),
+            self._read_stable_file(self.inbox),
+        )
+        second_snapshot = (
+            self._read_stable_file(self.outbox),
+            self._read_stable_file(self.inbox),
+        )
+        if first_snapshot != second_snapshot:
+            raise BridgeError("IPC files changed while checking resume preconditions")
+        outbox_bytes, inbox_bytes = second_snapshot
+
+        hello_match = re.fullmatch(rb"AC\|1\|HELLO\|([0-9a-f]{32})\n", outbox_bytes)
+        if hello_match is None:
+            raise BridgeError("resume requires bridge-to-mod.log to contain exactly one LF HELLO record")
+
+        session_bytes = hello_match.group(1)
+        expected_ack_lf = b"AC|1|HELLO_ACK|" + session_bytes + b"\n"
+        expected_ack_crlf = b"AC|1|HELLO_ACK|" + session_bytes + b"\r\n"
+        if inbox_bytes not in {expected_ack_lf, expected_ack_crlf}:
+            raise BridgeError("resume requires exactly one matching HELLO_ACK and no other inbox bytes")
+
+        self.session = session_bytes.decode("ascii")
+        self.inbox_offset = len(inbox_bytes)
+        self.inbox_record_count = 1
+        self.outbox_record_count = 1
+        self._resume_snapshot = second_snapshot
+
+    @staticmethod
+    def _read_stable_file(path: Path) -> bytes:
+        try:
+            with path.open("rb") as stream:
+                size_before = os.fstat(stream.fileno()).st_size
+                if size_before > MAX_LOG_BYTES:
+                    raise BridgeError("IPC file exceeds the provisional 64 KiB limit")
+                contents = stream.read(MAX_LOG_BYTES + 1)
+                size_after = os.fstat(stream.fileno()).st_size
+        except FileNotFoundError as exc:
+            raise BridgeError("resume requires one existing HELLO and HELLO_ACK record") from exc
+        if size_before != size_after or len(contents) != size_after:
+            raise BridgeError("IPC file changed while checking resume preconditions")
+        return contents
+
+    def _verify_resume_snapshot(self) -> None:
+        # This is a final change check, not a lock against concurrent writers.
+        if self._resume_snapshot is None:
+            return
+        current_snapshot = (
+            self._read_stable_file(self.outbox),
+            self._read_stable_file(self.inbox),
+        )
+        if current_snapshot != self._resume_snapshot:
+            raise BridgeError("IPC files changed after resume preflight; refusing to append PROBE")
 
     def append(self, record_type: str, *fields: object) -> None:
         if self.outbox_record_count >= MAX_RECORDS_PER_DIRECTION:
@@ -276,9 +349,13 @@ class FileBridge:
             raise BridgeError("incomplete trailing data after final ACKED")
 
     def run(self, cycles: int, probe_interval: float) -> None:
-        self.append("HELLO", self.session)
-        self.wait_for("HELLO_ACK")
-        print(f"HELLO_ACK session={self.session}")
+        if self.outbox_record_count == 0:
+            self.append("HELLO", self.session)
+            self.wait_for("HELLO_ACK")
+            print(f"HELLO_ACK session={self.session}")
+        else:
+            self._verify_resume_snapshot()
+            print(f"resuming after HELLO_ACK session={self.session}")
 
         for sequence in range(1, cycles + 1):
             started_at = time.monotonic()
@@ -372,6 +449,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--probe-interval", type=probe_interval_value, default=1.0)
     parser.add_argument("--poll-interval", type=poll_interval_value, default=0.1)
     parser.add_argument("--timeout", type=timeout_value, default=5.0)
+    parser.add_argument(
+        "--resume-after-hello",
+        action="store_true",
+        help="resume only from exactly one LF HELLO and its matching LF/CRLF HELLO_ACK; never clears files",
+    )
     args = parser.parse_args(argv)
     if args.poll_interval > args.timeout:
         parser.error("--poll-interval must not exceed --timeout")
@@ -386,6 +468,7 @@ def main(argv: list[str] | None = None) -> int:
             args.expected_ship_id,
             args.poll_interval,
             args.timeout,
+            resume_after_hello=args.resume_after_hello,
         ).run(args.cycles, args.probe_interval)
     except (BridgeError, OSError) as exc:
         print(f"bridge stopped: {exc}", file=sys.stderr)

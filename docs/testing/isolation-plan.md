@@ -6,9 +6,9 @@ Dieses Dokument beschreibt Gates für einen künftigen M1-Laufzeittest. Es ist e
 
 ## Letzte Laufzeitbeobachtung
 
-Die Testserverinstanz läuft. Ihr Lauf auf einer separaten Testkopie erreichte `Server startup complete`; ein Client verband sich und lud die Welt. Das Clientlog bestätigt die Registrierung des lokalen Projekt-Mod-Manifests und Server-Advertisement. Es belegt nicht, dass Lua-Scripts geladen oder `initialize` beziehungsweise Command-Handler ausgeführt wurden. Der Server meldete Multiplayer aktiviert und lauschte auf allen IPv4-Adressen; die technische Netzisolation ist nicht abgenommen.
+Der zweite Testserver auf einer separaten Testkopie erreichte `Server startup complete`; Multiplayer war aktiviert, der Server nicht gelistet und Steam Networking deaktiviert. Zwei passive Datei-IPC-Zyklen wurden in getrennten Sessions beobachtet. Im jüngsten Lauf waren die Kanäle vor Lua-Initialisierung leer; Inspect bestätigte ein AI-eigenes Ziel und die STATE-ID stimmte mit der erwarteten ID überein. Die Bridge schloss einen Zyklus mit Exitcode 0 ab. Attach meldete bereits vorhandene Probe-Präsenz; ein neues Attach wurde nicht bestätigt. Das belegt begrenzten passiven STATE-Transfer, keine ShipAI-Aktion oder Autonomie. Technische Netzisolation und formale GETESTET-Abnahme bleiben offen. Der Server läuft weiter; eine weitere aktive Wiederholung benötigt frische Kanaldateien.
 
-Historische Eingabephase vor dem neuesten Appshot: Return/KP_Enter oeffneten das Chatfeld nicht; der vollstaendige Inspect-Befehl wurde damals nicht uebermittelt. Ein spaeterer Nutzer-Appshot bestaetigt den begrenzten read-only Inspect. Der Attach-Versuch stoppte fail-closed an der leeren Allowlist; siehe Follow-up am Dokumentende.
+Historische Eingabephase vor dem erfolgreichen Inspect: Return/KP_Enter öffneten das Chatfeld nicht; der vollständige Inspect-Befehl wurde damals nicht übermittelt. Spätere Laufzeitbeobachtungen sind im Follow-up am Dokumentende beschrieben.
 
 ## Voraussetzungen
 
@@ -38,7 +38,7 @@ Ist eine Bedingung unbekannt, keinen weiteren Live-Test beginnen und keinen Spie
 
 M1 gilt erst als nachgewiesen, wenn die isolierte Umgebung dokumentiert ist, das Modladen belegt wurde, `inspect` erwartete schreibgeschützte Werte liefert, der Ein-Zyklus-Roundtrip erfolgreich endet, beide Kanalprotokolle die erwarteten korrelierten Records enthalten und der Zustand das vorgesehene Testschiff bezeichnet. Ein angenommenes Kommando oder ein Server-Konsolenmarker belegt keine Mod-IPC. M1 enthält keine Schiffssteuerungsaktion.
 
-Offline-Protokolltests sind kein Laufzeitnachweis. Der neueste Nutzer-Appshot belegt für diese Sitzung einen erfolgreichen read-only Inspect mit begrenzten Metadaten und Handler-Ausführung bis zur Inspect-Ausgabe; die Identität der geladenen Quelle bleibt ungeklaert. `probe_script_path` ist ein hart codierter vorgesehener Pfad und kein Beleg für ein angehängtes Script. Dateiberechtigungen, Lua-Parsing und echte Avorion-IPC bleiben unbestätigt.
+Offline-Protokolltests sind kein Laufzeitnachweis. Zwei passive Datei-IPC-Zyklen belegen Lua-Ausführung und begrenzten STATE-Transfer für diese Sessions. Die genaue Identität der geladenen Quelle, allgemeine Dateiberechtigungen, Fehlerfälle und technische Isolation bleiben offen. `probe_script_path` ist ein hart codierter vorgesehener Pfad und für sich kein Attach-Beleg; beim jüngsten Lauf meldete der Attach-Aufruf nur bereits vorhandene Probe-Präsenz.
 
 ## Spätere Aktionstests
 
@@ -50,7 +50,7 @@ Ein M2-Bewegungstest benötigt nach M1 eine eigene Prüfung und Abnahme. Er muss
 - **DOKUMENTIERT:** Konsolen-/RCON-Aufrufe an `CommandFunctions.execute` erhalten `playerIndex == nil`. Der aktuelle Inspect-Handler verlangt Ingame-Spieler- und Zielkontext; `commands.txt` kann diesen nicht bereitstellen. Die `/help`-Liste belegt nur Befehlsregistrierung und Auflistung.
 - **API-Kandidat, nicht getestet:** Ein separater read-only Konsolenmodus könnte eine Entity-ID über `Sector():getEntity(rawId)` prüfen. Ob `Sector()` im globalen Command-Kontext mit `playerIndex == nil` verfügbar ist, bleibt unbestätigt. Die dokumentierte Entity-Auflistung hat keine eingebaute Obergrenze und ist nicht implementiert.
 - Für Command-Scripts ist kein dokumentierter Hot-Reload bekannt. Der Server wurde nicht für diese Prüfung geändert oder neu gestartet.
-- Die letzte lesende UI-Prüfung zeigte eine leere Chatzeile. Der vollständige Inspect-Aufruf, Attach und IPC-Roundtrip wurden nicht ausgeführt; M1 bleibt offen.
+- **Historischer UI-Stand vor dem Live-Durchstich:** Eine damalige lesende UI-Prüfung zeigte eine leere Chatzeile. Inspect, Attach und IPC-Roundtrip wurden zu diesem Zeitpunkt nicht ausgeführt; der aktuelle Laufzeitstand steht oben.
 
 ## Aktualisierung 2026-10-23: Computer-Use-/Vollbild-Befund
 
@@ -59,7 +59,7 @@ Ein M2-Bewegungstest benötigt nach M1 eine eigene Prüfung und Abnahme. Er muss
 - Computer-Use/Windows/Vollbild/Game-Input ist eine mögliche, nicht bewiesene Ursache. Offizielle OpenAI-Seiten ergaben keinen passenden Vollbild-Spiel-Workaround oder bestätigten Avorion-spezifischen Fehler. Die [Windows-App-Berichte](https://community.openai.com/t/computer-use-plugin-stopped-working/1397316/2) und [Initialisierungsberichte](https://community.openai.com/t/windows-computer-use-fails-at-initialization-with-eperm-after-repair-reset-and-reinstall/1389280) sind anekdotisch, keine bestätigte Fehlerursache.
 - Der Appshot belegt einen read-only Inspect mit begrenzten Metadaten; weitergehender State-Export, tatsächlicher Attach und IPC-Roundtrip fehlen. **M1 bleibt offen.**
 
-## Follow-up 2026-10-23: UI-Fensterreaktivierung
+## Historischer Follow-up 2026-10-23: UI-Fensterreaktivierung
 
 - Der lesende App-Check lieferte genau ein Avorion-Fenster (App-ID `steam://rungameid/445220`, Titel `Avorion`, Prozess `Avorion.exe`). Nach einer Minimiert-Meldung wurde dieselbe zurückgegebene Fensterreferenz aktiviert und neu geladen.
 - Der frische Screenshot/UIA-Zustand zeigte den Vollbild-Ladebildschirm „Leertaste drücken um fortzufahren“ und Fokus auf der Avorion-Fläche. Es wurde keine Taste gesendet. Die Zielreferenz ist reaktivierbar; Tasteneingabe-Annahme und Ursache früherer Fehlschläge sind nicht nachgewiesen.
@@ -70,10 +70,24 @@ Ein M2-Bewegungstest benötigt nach M1 eine eigene Prüfung und Abnahme. Er muss
 - Der frühere Appshot zeigte zweimal `No valid selected target was found.`; der passende String steht an der `craft.selectedObject`-Guard. Das ist bedingter Laufzeitbeleg für diesen damaligen Zwischenstand, sofern die Quelle geladen war.
 - Der neueste Appshot loest diesen Zwischenstand ab: Ein read-only Inspect lieferte begrenzte Metadaten; der Attach-Versuch wurde von der leeren Allowlist fail-closed gestoppt. Es gab keinen Attach oder IPC-Roundtrip.
 
-### Follow-up: Read-only Inspect und Allowlist-Sperre (2026-10-23)
+### Historischer Follow-up: Read-only Inspect und Allowlist-Sperre (2026-10-23, vor den Live-Zyklen)
 
 Der neueste Nutzer-Appshot zeigt ein ausgewähltes AI-eigenes Schiff. Der read-only Inspect gelang und gab eine Schiff-ID, den Serverordner der Testinstanz, `AI-owner=true` sowie `probe_script_path=data/scripts/entity/ai_commander_probe.lua` aus; konkrete IDs und lokale Pfade werden hier ausgelassen. Die Ausgabe belegt die begrenzten Inspect-Metadaten für diese Sitzung. `probe_script_path` ist ein hart codierter vorgesehener Pfad und kein Nachweis, dass das Script angehängt wurde. Der Attach-Versuch endete fail-closed mit `No disposable test ship is allowlisted; no attach was requested.`; es wurde nichts angehängt. Es gab keinen weitergehenden State-Export und keinen IPC-Roundtrip. Die lokale Tastenbelegung ordnet `Nearest Enemy` Scancode 21 (R) zu; das belegt nur eine konfigurierte Taste, nicht dass sie gedrückt wurde oder die Auswahl verursachte. **M1 bleibt offen.**
 
-### Follow-up: ausgewählte AI-Fregatte und ID-bestätigter Attach-Kandidat (2026-10-23)
+### Historischer Follow-up: ausgewählte AI-Fregatte und ID-bestätigter Attach-Kandidat (2026-10-23)
 
 Ein neuerer Appshot zeigt eine ausgewählte AI-Fregatte und einen erfolgreichen read-only Inspect mit `AI-owner=true`; konkrete IDs und lokale Pfade werden nicht veröffentlicht. Der Source-Kandidat verlangt `attach confirm <ship-id-from-inspect>` und vergleicht die angegebene ID mit dem weiterhin ausgewählten Ziel. Das ist nicht im laufenden Server geladen oder ausgeführt; die Argumentübergabe an den Handler bleibt offen. Der frühere leere-Allowlist-Abbruch bleibt historische Evidenz. Eine akzeptierte Probe entfernt sich nicht nach `--cycles 1`: Sie bleibt am Entity und pollt weiter einmal pro Sekunde. Es gab keinen Attach und keinen IPC-Roundtrip.
+
+## Historisches Follow-up 2026-10-23: erster beobachteter passiver Live-IPC-Zyklus
+
+Die Ingame-Antwort meldete die Probe am ausgewaehlten AI-Schiff als bereits angehaengt. Nach HELLO/HELLO_ACK brach der erste Bridge-Lauf vor PROBE an einer CRLF-Antwort ab. Nach dem Parserfix wurde dieselbe aktive Lua-Session mit `--resume-after-hello` fortgesetzt: genau ein `PROBE 1 -> STATE -> ACK 1 -> ACKED`; Bridge-Exitcode 0. STATE entsprach der unabhaengig bestaetigten erwarteten Schiff-ID; IDs und lokale Pfade bleiben ausgelassen.
+
+Dieser erste Zyklus belegt passive Zustandsuebertragung, keine Spielsteuerung oder Kampfaktion. Die Probe pollte nach Abschluss der Bridge weiter. Resume ist nur fuer einen exklusiven einzelnen Bridge-Writer und eine aktive Lua-Session bestimmt; Snapshot-Pruefung ist kein Lock und bietet keine Concurrent-Writer-Sicherheit. Offline-Tests belegen weiterhin nur Parser-/Resume-Verhalten.
+
+## Aktueller Live-Durchstich 2026-10-23: zweiter passiver Ein-Zyklus-Lauf
+
+Ein zweiter Serverstart auf einer frischen Testkopie erreichte `Server startup complete`; der Server meldete Multiplayer aktiviert, nicht gelistet und Steam Networking deaktiviert. Der Server läuft weiter. Die separate Mod- und Backup-Konfiguration dieser Testkopie belegt keine technische Netzisolation.
+
+Der read-only Inspect bestätigte ein AI-eigenes Ziel; die unabhängig bestätigte erwartete Schiff-ID stimmte mit der späteren STATE-ID überein. Ein Attach-Aufruf ohne Bestätigung gab nur Usage aus. `attach confirm <id>` antwortete, dass die Probe bereits angehängt erscheint, und forderte kein neues Attach an. Vor Lua-Initialisierung waren beide IPC-Dateien leer. Die Bridge lief einen Zyklus mit Exitcode 0: HELLO_ACK, STATE mit passiven Zustandsfeldern und passender ID, danach ACKED. Die geprüften Logs enthalten exakt drei Records je Richtung und keinen Mehrfachzyklus.
+
+Damit wurden insgesamt zwei passive Ein-Zyklus-Läufe in getrennten Sessions beobachtet. Das belegt begrenzte Datei-IPC und den erwarteten ID-Vergleich, aber keine ShipAI-Aktion, keinen Kampf und keine Autonomie. Weil technische Isolation nicht bestätigt ist, bleibt die formale **GETESTET**-Abnahme nach `AGENTS.md` offen. Genaue Quellidentität, Fehler-/Grenzfälle und Langzeitverhalten bleiben offen. Eine weitere aktive Wiederholung muss frische IPC-Kanaldateien verwenden; vorhandene Logs werden nicht geleert oder überschrieben.

@@ -31,10 +31,11 @@ def alternate_session(session: str) -> str:
 class ScriptedFilePeer:
     """Fake Mod peer that can inject malformed, duplicate, and replay records."""
 
-    def __init__(self, directory: Path, scenario: str) -> None:
+    def __init__(self, directory: Path, scenario: str, *, ignore_existing_outbox: bool = False) -> None:
         self.inbox = directory / "mod-to-bridge.log"
         self.outbox = directory / "bridge-to-mod.log"
         self.scenario = scenario
+        self.ignore_existing_outbox = ignore_existing_outbox
         self.stop_event = threading.Event()
         self.failure: BaseException | None = None
         self.thread = threading.Thread(target=self._run, name="ac1-fake-peer", daemon=True)
@@ -54,8 +55,11 @@ class ScriptedFilePeer:
             stream.flush()
 
     @staticmethod
-    def _record(record_type: str, *fields: object) -> bytes:
-        return ("|".join(["AC", "1", record_type, *(str(field) for field in fields)]) + "\n").encode("ascii")
+    def _record(record_type: str, *fields: object, line_ending: bytes = b"\n") -> bytes:
+        return ("|".join(["AC", "1", record_type, *(str(field) for field in fields)])).encode("ascii") + line_ending
+
+    def _response_line_ending(self) -> bytes:
+        return b"\r\n" if self.scenario == "crlf-responses" else b"\n"
 
     def _state(self, session: str, sequence: str) -> bytes:
         if self.scenario == "foreign-state-session":
@@ -75,6 +79,7 @@ class ScriptedFilePeer:
             "-1.5",
             "0",
             "2.25",
+            line_ending=self._response_line_ending(),
         )
 
     def _handle(self, line: bytes) -> None:
@@ -87,9 +92,13 @@ class ScriptedFilePeer:
             if self.scenario == "malformed-hello":
                 self._write([self._record("HELLO_ACK", session, "unexpected")])
                 return
+            if self.scenario == "cr-in-record":
+                session = session[:8] + "\r" + session[8:]
+                self._write([self._record("HELLO_ACK", session)])
+                return
             if self.scenario == "foreign-hello-session":
                 session = alternate_session(session)
-            self._write([self._record("HELLO_ACK", session)])
+            self._write([self._record("HELLO_ACK", session, line_ending=self._response_line_ending())])
             return
 
         if record_type == "PROBE":
@@ -112,12 +121,12 @@ class ScriptedFilePeer:
                 time.sleep(SHARED_DEADLINE_STAGE_DELAY)
             if self.scenario == "replayed-acked-sequence" and sequence != "1":
                 sequence = "1"
-            acked = self._record("ACKED", session, sequence)
+            acked = self._record("ACKED", session, sequence, line_ending=self._response_line_ending())
             records = [acked, acked] if self.scenario == "duplicate-acked" else [acked]
             self._write(records)
 
     def _run(self) -> None:
-        offset = 0
+        offset = self.outbox.stat().st_size if self.ignore_existing_outbox and self.outbox.exists() else 0
         partial = b""
         try:
             while not self.stop_event.is_set():
@@ -137,29 +146,56 @@ class ScriptedFilePeer:
 
 class ProbeBridgeOfflineTests(unittest.TestCase):
     def run_bridge(
-        self, scenario: str, *, cycles: int = 1, timeout: float = 0.5
+        self,
+        scenario: str,
+        *,
+        cycles: int = 1,
+        timeout: float = 0.5,
+        resume_after_hello: bool = False,
+        resume_variant: str = "valid",
     ) -> tuple[subprocess.CompletedProcess[str], str]:
         with tempfile.TemporaryDirectory(prefix="ac1-offline-") as temp:
             directory = Path(temp)
-            peer = ScriptedFilePeer(directory, scenario)
+            if resume_after_hello:
+                session = "a" * 32
+                (directory / "bridge-to-mod.log").write_bytes(
+                    f"AC|1|HELLO|{session}\n".encode("ascii")
+                )
+                if resume_variant == "mismatched-session":
+                    ack_session = "b" * 32
+                    inbox = f"AC|1|HELLO_ACK|{ack_session}\r\n".encode("ascii")
+                elif resume_variant == "extra-record":
+                    inbox = (
+                        f"AC|1|HELLO_ACK|{session}\r\nAC|1|ERROR|{session}|0|invalid_session\n"
+                    ).encode("ascii")
+                else:
+                    inbox = f"AC|1|HELLO_ACK|{session}\r\n".encode("ascii")
+                (directory / "mod-to-bridge.log").write_bytes(inbox)
+
+            peer = ScriptedFilePeer(
+                directory, scenario, ignore_existing_outbox=resume_after_hello
+            )
             with peer:
+                command = [
+                    sys.executable,
+                    str(BRIDGE),
+                    "--moddata-dir",
+                    str(directory),
+                    "--expected-ship-id",
+                    SHIP_ID,
+                    "--cycles",
+                    str(cycles),
+                    "--probe-interval",
+                    "0.1",
+                    "--poll-interval",
+                    "0.01",
+                    "--timeout",
+                    str(timeout),
+                ]
+                if resume_after_hello:
+                    command.append("--resume-after-hello")
                 result = subprocess.run(
-                    [
-                        sys.executable,
-                        str(BRIDGE),
-                        "--moddata-dir",
-                        str(directory),
-                        "--expected-ship-id",
-                        SHIP_ID,
-                        "--cycles",
-                        str(cycles),
-                        "--probe-interval",
-                        "0.1",
-                        "--poll-interval",
-                        "0.01",
-                        "--timeout",
-                        str(timeout),
-                    ],
+                    command,
                     cwd=ROOT,
                     capture_output=True,
                     text=True,
@@ -206,6 +242,46 @@ class ProbeBridgeOfflineTests(unittest.TestCase):
         self.assertIn("STATE seq=2 ship_id=offline-test-ship", result.stdout)
         self.assertEqual(outbound.count("|PROBE|"), 2)
         self.assertEqual(outbound.count("|ACK|"), 2)
+
+    def test_accepts_crlf_mod_responses(self) -> None:
+        result, outbound = self.run_bridge("crlf-responses")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("STATE seq=1 ship_id=offline-test-ship", result.stdout)
+        self.assertEqual(outbound.count("|PROBE|"), 1)
+        self.assertEqual(outbound.count("|ACK|"), 1)
+        self.assertNotIn("\r", outbound)
+
+    def test_rejects_cr_inside_record(self) -> None:
+        result, outbound = self.run_bridge("cr-in-record")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("CR and NUL are forbidden in records", result.stderr)
+        self.assertNotIn("|PROBE|", outbound)
+
+    def test_resumes_exact_hello_ack_state_without_resending_hello(self) -> None:
+        result, outbound = self.run_bridge("valid", resume_after_hello=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("resuming after HELLO_ACK", result.stdout)
+        self.assertEqual(outbound.count("|HELLO|"), 1)
+        self.assertEqual(outbound.count("|PROBE|"), 1)
+        self.assertEqual(outbound.count("|ACK|"), 1)
+
+    def test_resume_rejects_mismatched_hello_ack_session(self) -> None:
+        result, outbound = self.run_bridge(
+            "valid", resume_after_hello=True, resume_variant="mismatched-session"
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("exactly one matching HELLO_ACK", result.stderr)
+        self.assertEqual(outbound.count("|HELLO|"), 1)
+        self.assertNotIn("|PROBE|", outbound)
+
+    def test_resume_rejects_extra_record(self) -> None:
+        result, outbound = self.run_bridge(
+            "valid", resume_after_hello=True, resume_variant="extra-record"
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("exactly one matching HELLO_ACK", result.stderr)
+        self.assertEqual(outbound.count("|HELLO|"), 1)
+        self.assertNotIn("|PROBE|", outbound)
 
     def test_rejects_foreign_hello_session(self) -> None:
         result, outbound = self.run_bridge("foreign-hello-session")

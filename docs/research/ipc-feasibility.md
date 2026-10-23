@@ -2,7 +2,7 @@
 
 ## Umfang und Evidenz
 
-Dies ist eine statische, versionsbezogene Recherche. Sie belegt kein Laufzeitverhalten auf einem konkreten Rechner. **M1-IPC wurde nicht getestet.**
+Dies ist eine statische, versionsbezogene Recherche. Sie belegt kein Laufzeitverhalten auf einem konkreten Rechner. Diese statische Recherche führte selbst keinen IPC-Lauf aus; zwei spätere passive M1-Live-Zyklen sind im `docs/project/status.md` dokumentiert.
 
 Verwende die Evidenzstufen des Projekts: **DOKUMENTIERT** bezeichnet eine passende Quelle, **PLAUSIBEL** eine noch nicht nachgewiesene Möglichkeit und **GETESTET** ein reproduzierbares Laufzeitergebnis.
 
@@ -46,6 +46,6 @@ Datei-IPC ist ein begrenzter Anfrage-/Antwortkanal, kein direkter Datenbankzugri
 
 ## Vorläufige Empfehlung
 
-Begrenzte Datei-IPC bleibt M1-Kandidat, bis ein isolierter Lauf Pfadauflösung, Dateiberechtigungen und vollständigen bidirektionalen Austausch belegt. RCON für Serveradministration und Befehlsdateien für einfache einseitige Kommandos verwenden. Latenz messen, statt ein Pollingintervall vorauszusetzen. Dies ist eine Hypothese und kein Laufzeitergebnis.
+Begrenzte Datei-IPC bleibt M1-Kandidat. Zwei spätere Live-Läufe bestätigten einen begrenzten bidirektionalen Entity-State-Austausch; ein reproduzierbarer Lauf in bestätigter Isolation sowie allgemeine Pfad-, Berechtigungs- und Fehlergarantien sind nicht belegt. RCON für Serveradministration und Befehlsdateien für einfache einseitige Kommandos verwenden. Latenz messen, statt ein Pollingintervall vorauszusetzen.
 
-Dieser öffentliche Snapshot enthält keinen Live-IPC-Test, keine Avorion-Aktion und keine hostbezogene Netzwerkanalyse.
+Dieser statische Recherchebericht enthält selbst keinen Live-Test oder hostbezogene Netzwerkanalyse; die zwei separat beobachteten passiven IPC-Zyklen sind im öffentlichen Projektstatus dokumentiert. Sie belegen keine bestätigte Netzisolation oder formale M1-Abnahme.
